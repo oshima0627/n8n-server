@@ -30,7 +30,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first();\nconst from = item.json.from || '';\nconst subject = item.json.subject || '';\nconst text = item.json.text || item.json.textHtml || '';\n\n// HTMLタグを除去\nconst cleanText = text.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').trim();\n\nreturn [\n  {\n    json: {\n      from,\n      subject,\n      body: cleanText,\n      rawEmail: item.json\n    }\n  }\n];"
+        "jsCode": "const item = $input.first();\nconst from = item.json.from || '';\nconst subject = item.json.subject || '';\nconst text = item.json.text || item.json.textHtml || '';\n\n// HTMLタグを除去\nconst cleanText = text.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').trim();\n\nreturn [\n  {\n    json: {\n      from,\n      subject,\n      body: cleanText\n    }\n  }\n];"
       },
       "id": "extract-email",
       "name": "メール内容を整形",
@@ -40,40 +40,81 @@
     },
     {
       "parameters": {
-        "model": "claude-opus-4-6",
-        "messages": {
-          "values": [
-            {
-              "role": "user",
-              "content": "以下のメールに対する返信文を日本語で作成してください。\n\n【送信者】\n{{ $json.from }}\n\n【件名】\n{{ $json.subject }}\n\n【本文】\n{{ $json.body }}\n\n---\n返信文は丁寧で簡潔にまとめてください。件名の「Re:」も含めて出力してください。\n\n出力形式:\n件名: Re: [件名]\n\n[返信本文]"
-            }
-          ]
-        },
+        "resource": "event",
+        "operation": "getAll",
+        "calendarId": "primary",
+        "returnAll": false,
+        "limit": 50,
         "options": {
-          "maxTokensToSample": 1000
+          "timeMin": "={{ new Date().toISOString() }}",
+          "timeMax": "={{ new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }}",
+          "singleEvents": true,
+          "orderBy": "startTime"
         }
       },
-      "id": "claude-reply",
-      "name": "Claude: 返信文作成",
-      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
-      "typeVersion": 1.3,
+      "id": "get-calendar-events",
+      "name": "Googleカレンダー: イベント取得",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.1,
       "position": [680, 300],
       "credentials": {
-        "anthropicApi": {
-          "id": "anthropic-credentials",
-          "name": "Anthropic API"
+        "googleCalendarOAuth2Api": {
+          "id": "google-calendar-credentials",
+          "name": "Google Calendar設定"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const emailItem = $('メール内容を整形').first().json;\nconst claudeOutput = $input.first().json;\n\n// Claudeの返信テキストを取得\nconst replyText = claudeOutput.content?.[0]?.text || claudeOutput.text || String(claudeOutput);\n\nconst message = `📧 新着メールへの返信案\n\n【元メール】\n送信者: ${emailItem.from}\n件名: ${emailItem.subject}\n\n【Claudeが作成した返信案】\n${replyText}\n\n---\nこの返信内容でよろしいですか？\n✅ 承認して送信 / ✏️ 修正が必要`;\n\nreturn [\n  {\n    json: {\n      lineMessage: message,\n      emailFrom: emailItem.from,\n      emailSubject: emailItem.subject,\n      replyDraft: replyText\n    }\n  }\n];"
+        "jsCode": "// カレンダーイベントを整形\nconst events = $input.all();\nconst emailData = $('メール内容を整形').first().json;\n\nconst formattedEvents = events.map(e => {\n  const ev = e.json;\n  const start = ev.start?.dateTime || ev.start?.date || '';\n  const end = ev.end?.dateTime || ev.end?.date || '';\n  const title = ev.summary || '(無題)';\n  return { title, start, end };\n});\n\n// 今日の日付を取得\nconst today = new Date();\nconst todayStr = today.toLocaleDateString('ja-JP', {\n  year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'\n});\n\n// Claudeへのプロンプトを組み立てる\nconst calendarSummary = formattedEvents.length > 0\n  ? formattedEvents.map(e => {\n      const start = new Date(e.start).toLocaleString('ja-JP', {month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit'});\n      const end = new Date(e.end).toLocaleString('ja-JP', {hour: '2-digit', minute: '2-digit'});\n      return `・${start}〜${end} ${e.title}`;\n    }).join('\\n')\n  : '（予定なし）';\n\nconst prompt = `以下のメールを読み、希望日時を確認してGoogleカレンダーの空き状況を考慮した返信文を日本語で作成してください。\n\n【今日の日付】\n${todayStr}\n\n【受信メール】\n送信者: ${emailData.from}\n件名: ${emailData.subject}\n本文:\n${emailData.body}\n\n【今後30日間のGoogleカレンダー予定】\n${calendarSummary}\n\n---\n【指示】\n1. メール本文から相手の希望日時候補をすべて読み取ってください。\n2. カレンダーの予定と照合して、空いている日時を特定してください。\n3. 空いている日時を明示しながら、丁寧な返信文を作成してください。\n4. もし希望日時がすべて埋まっている場合は、代替案を提示してください。\n5. 件名は「Re: 元の件名」形式にしてください。\n\n出力形式:\n件名: Re: [件名]\n\n[返信本文]`;\n\nreturn [\n  {\n    json: {\n      prompt,\n      emailFrom: emailData.from,\n      emailSubject: emailData.subject,\n      emailBody: emailData.body,\n      calendarEvents: formattedEvents\n    }\n  }\n];"
+      },
+      "id": "build-claude-prompt",
+      "name": "カレンダー情報 & プロンプト作成",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $vars.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ model: 'claude-opus-4-6', max_tokens: 1500, messages: [{ role: 'user', content: $json.prompt }] }) }}"
+      },
+      "id": "call-claude-api",
+      "name": "Claude: 返信文作成",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const claudeResponse = $input.first().json;\nconst prevData = $('カレンダー情報 & プロンプト作成').first().json;\n\n// Claudeの返信テキストを取得\nconst replyText = claudeResponse.content?.[0]?.text || '';\n\n// カレンダーイベント件数\nconst eventCount = prevData.calendarEvents?.length || 0;\n\nconst message = `📧 新着メールへの返信案\n\n【元メール】\n送信者: ${prevData.emailFrom}\n件名: ${prevData.emailSubject}\n\n【Claudeが作成した返信案】\n（カレンダー ${eventCount}件の予定を確認済み）\n\n${replyText}\n\n---\nこの返信内容でよろしいですか？\n✅ 承認して送信 / ✏️ 修正が必要`;\n\nreturn [\n  {\n    json: {\n      lineMessage: message,\n      emailFrom: prevData.emailFrom,\n      emailSubject: prevData.emailSubject,\n      replyDraft: replyText\n    }\n  }\n];"
       },
       "id": "format-line-message",
       "name": "LINEメッセージを整形",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [900, 300]
+      "position": [1340, 300]
     },
     {
       "parameters": {
@@ -86,7 +127,7 @@
       "name": "LINEに確認メッセージを送信",
       "type": "n8n-nodes-base.line",
       "typeVersion": 1,
-      "position": [1120, 300],
+      "position": [1560, 300],
       "credentials": {
         "lineNotifyOAuth2Api": {
           "id": "line-credentials",
@@ -108,6 +149,28 @@
       ]
     },
     "メール内容を整形": {
+      "main": [
+        [
+          {
+            "node": "Googleカレンダー: イベント取得",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Googleカレンダー: イベント取得": {
+      "main": [
+        [
+          {
+            "node": "カレンダー情報 & プロンプト作成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "カレンダー情報 & プロンプト作成": {
       "main": [
         [
           {
@@ -145,5 +208,5 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "tags": ["メール", "LINE", "Claude", "自動化"]
+  "tags": ["メール", "LINE", "Claude", "Googleカレンダー", "自動化"]
 }
