@@ -1,5 +1,5 @@
 {
-  "name": "メール受信 → Claude返信作成 → LINE確認",
+  "name": "ペーパードライバースクール 申込メール → Claude返信作成 → LINE確認",
   "nodes": [
     {
       "parameters": {
@@ -30,7 +30,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const item = $input.first();\nconst from = item.json.from || '';\nconst subject = item.json.subject || '';\nconst text = item.json.text || item.json.textHtml || '';\n\n// HTMLタグを除去\nconst cleanText = text.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').trim();\n\nreturn [\n  {\n    json: {\n      from,\n      subject,\n      body: cleanText\n    }\n  }\n];"
+        "jsCode": "const item = $input.first();\nconst from = item.json.from || '';\nconst subject = item.json.subject || '';\nconst rawText = item.json.text || item.json.textHtml || '';\n\n// HTMLタグを除去\nconst text = rawText.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').trim();\n\n// フォーム形式のメールからフィールドを抽出するヘルパー\nfunction extractField(text, fieldName) {\n  const regex = new RegExp(fieldName + '[：:」]\\\\s*(.+?)(?=\\n|$)', 'g');\n  const match = regex.exec(text);\n  return match ? match[1].trim() : '';\n}\n\n// 各フィールドを抽出\nconst parsed = {\n  item:           extractField(text, '項目'),\n  name:           extractField(text, '名前'),\n  furigana:       extractField(text, 'ふりがな'),\n  email:          extractField(text, 'メールアドレス'),\n  phone:          extractField(text, '電話番号'),\n  gender:         extractField(text, '性別'),\n  address:        extractField(text, '住所'),\n  nodriving:      extractField(text, '運転をしていない期間'),\n  lessonTarget:   extractField(text, '講習の目安'),\n  lessonDate:     extractField(text, '講習の目安.*日'),\n  car:            extractField(text, '使用する教習車'),\n  mycar:          extractField(text, 'マイカーの車種'),\n  location:       extractField(text, '出張先'),\n  locationOther:  extractField(text, '出張先が自宅以外の場合は記入'),\n  date1:          extractField(text, '第一希望日'),\n  time1:          extractField(text, '第一希望時間'),\n  date2:          extractField(text, '第二希望日'),\n  time2:          extractField(text, '第二希望時間'),\n  date3:          extractField(text, '第三希望日'),\n  time3:          extractField(text, '第三希望時間'),\n  payment:        extractField(text, 'お支払い方法'),\n  message:        ''\n};\n\n// メッセージ欄は複数行にわたるため別処理\nconst msgMatch = text.match(/メッセージ[：:]\\s*([\\s\\S]+)$/);\nif (msgMatch) {\n  parsed.message = msgMatch[1].trim();\n}\n\n// お問い合わせのみか申し込みかを判定\nconst isInquiryOnly = parsed.item.includes('お問い合わせのみ');\n\nreturn [\n  {\n    json: {\n      from,\n      subject,\n      rawBody: text,\n      parsed,\n      isInquiryOnly\n    }\n  }\n];"
       },
       "id": "extract-email",
       "name": "メール内容を整形",
@@ -47,7 +47,7 @@
         "limit": 50,
         "options": {
           "timeMin": "={{ new Date().toISOString() }}",
-          "timeMax": "={{ new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }}",
+          "timeMax": "={{ new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString() }}",
           "singleEvents": true,
           "orderBy": "startTime"
         }
@@ -66,7 +66,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// カレンダーイベントを整形\nconst events = $input.all();\nconst emailData = $('メール内容を整形').first().json;\n\nconst formattedEvents = events.map(e => {\n  const ev = e.json;\n  const start = ev.start?.dateTime || ev.start?.date || '';\n  const end = ev.end?.dateTime || ev.end?.date || '';\n  const title = ev.summary || '(無題)';\n  return { title, start, end };\n});\n\n// 今日の日付を取得\nconst today = new Date();\nconst todayStr = today.toLocaleDateString('ja-JP', {\n  year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'\n});\n\n// Claudeへのプロンプトを組み立てる\nconst calendarSummary = formattedEvents.length > 0\n  ? formattedEvents.map(e => {\n      const start = new Date(e.start).toLocaleString('ja-JP', {month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit'});\n      const end = new Date(e.end).toLocaleString('ja-JP', {hour: '2-digit', minute: '2-digit'});\n      return `・${start}〜${end} ${e.title}`;\n    }).join('\\n')\n  : '（予定なし）';\n\nconst prompt = `以下のメールを読み、希望日時を確認してGoogleカレンダーの空き状況を考慮した返信文を日本語で作成してください。\n\n【今日の日付】\n${todayStr}\n\n【受信メール】\n送信者: ${emailData.from}\n件名: ${emailData.subject}\n本文:\n${emailData.body}\n\n【今後30日間のGoogleカレンダー予定】\n${calendarSummary}\n\n---\n【指示】\n1. メール本文から相手の希望日時候補をすべて読み取ってください。\n2. カレンダーの予定と照合して、空いている日時を特定してください。\n3. 空いている日時を明示しながら、丁寧な返信文を作成してください。\n4. もし希望日時がすべて埋まっている場合は、代替案を提示してください。\n5. 件名は「Re: 元の件名」形式にしてください。\n\n出力形式:\n件名: Re: [件名]\n\n[返信本文]`;\n\nreturn [\n  {\n    json: {\n      prompt,\n      emailFrom: emailData.from,\n      emailSubject: emailData.subject,\n      emailBody: emailData.body,\n      calendarEvents: formattedEvents\n    }\n  }\n];"
+        "jsCode": "// カレンダーイベントを整形\nconst events = $input.all();\nconst emailData = $('メール内容を整形').first().json;\nconst p = emailData.parsed;\n\nconst formattedEvents = events.map(e => {\n  const ev = e.json;\n  const start = ev.start?.dateTime || ev.start?.date || '';\n  const end = ev.end?.dateTime || ev.end?.date || '';\n  const title = ev.summary || '(無題)';\n  return { title, start, end };\n});\n\n// 今日の日付\nconst today = new Date();\nconst todayStr = today.toLocaleDateString('ja-JP', {\n  year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'\n});\n\n// カレンダー予定の文字列化\nconst calendarSummary = formattedEvents.length > 0\n  ? formattedEvents.map(e => {\n      const s = new Date(e.start);\n      const en = new Date(e.end);\n      const dateStr = s.toLocaleDateString('ja-JP', {month: 'long', day: 'numeric', weekday: 'short'});\n      const startTime = s.toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit'});\n      const endTime = en.toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit'});\n      // 終日イベントの場合\n      if (e.start.length === 10) {\n        return `・${dateStr} 終日 ${e.title}`;\n      }\n      return `・${dateStr} ${startTime}〜${endTime} ${e.title}`;\n    }).join('\\n')\n  : '（予定なし）';\n\n// 申し込み内容のサマリー\nconst inquirySummary = `項目: ${p.item}\n名前: ${p.name}（${p.furigana}）様\nメールアドレス: ${p.email}\n電話番号: ${p.phone}\n運転していない期間: ${p.nodriving}\n使用車両: ${p.car}${p.mycar ? '（' + p.mycar + '）' : ''}\n出張先: ${p.location}${p.locationOther ? '（' + p.locationOther + '）' : ''}\n第一希望: ${p.date1} ${p.time1}\n第二希望: ${p.date2} ${p.time2}\n第三希望: ${p.date3} ${p.time3}\n支払い: ${p.payment}\nメッセージ: ${p.message}`;\n\nconst lineOfficialUrl = $vars.LINE_OFFICIAL_URL || 'https://lin.ee/vwFCADj';\n\nconst prompt = `あなたは「うめきた大阪ペーパードライバースクール」の受付担当・大西です。\n以下のお申し込みメールに対して、返信メールを作成してください。\n\n【今日の日付】\n${todayStr}\n\n【お申し込み内容】\n${inquirySummary}\n\n【カレンダーの予約状況（今後60日分）】\n${calendarSummary}\n\n---\n【返信メールの作成ルール】\n\n1. 書き出しは「${p.name}様」で始めること\n2. 次に「この度は当スクールにお問合せいただき、誠にありがとうございます。受付担当の大西と申します。」を入れること\n3. カレンダーを確認し、第一〜第三希望日の空き状況を明記すること\n   - 空いている日程: 「〇月〇日（曜日）〇時スタート可能です」\n   - 埋まっている日程: 「第〇希望は予約いっぱいとなっております」\n   - 空き枠が決まったら「本日〇時まで仮押さえさせていただきます」と明記すること（翌日17時が目安）\n4. お客様のメッセージ内容・ご状況に応じて、適切なコースを提案すること\n   - 駐車のみ希望 → 「駐車やり方学ぼう（2時限）」など\n   - 走る練習も必要そう → 「最低でも10時限、または20時限コースをおすすめしております」\n   - 迷っている場合 → 「お試し教習70分を受講いただき、現在の運転状況を見させていただき教習担当と相談することも可能です」\n5. 「進めていく場合は、下記LINE公式アカウントにご登録ください。当日の詳細をお送りします。登録後、${p.name}様のお名前のみお送りいただけますでしょうか。」を入れること\n6. 末尾にLINE公式アカウントのURLを記載すること: ${lineOfficialUrl}\n7. 件名は「Re: [元の件名]」形式\n8. 丁寧・簡潔・温かみのある文体にすること\n\n出力形式:\n件名: Re: [件名]\n\n[返信本文]`;\n\nreturn [\n  {\n    json: {\n      prompt,\n      emailFrom: emailData.from,\n      emailSubject: emailData.subject,\n      parsed: p,\n      isInquiryOnly: emailData.isInquiryOnly,\n      calendarEventCount: formattedEvents.length\n    }\n  }\n];"
       },
       "id": "build-claude-prompt",
       "name": "カレンダー情報 & プロンプト作成",
@@ -98,7 +98,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ model: 'claude-opus-4-6', max_tokens: 1500, messages: [{ role: 'user', content: $json.prompt }] }) }}"
+        "body": "={{ JSON.stringify({ model: 'claude-opus-4-6', max_tokens: 2000, messages: [{ role: 'user', content: $json.prompt }] }) }}"
       },
       "id": "call-claude-api",
       "name": "Claude: 返信文作成",
@@ -108,7 +108,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const claudeResponse = $input.first().json;\nconst prevData = $('カレンダー情報 & プロンプト作成').first().json;\n\n// Claudeの返信テキストを取得\nconst replyText = claudeResponse.content?.[0]?.text || '';\n\n// カレンダーイベント件数\nconst eventCount = prevData.calendarEvents?.length || 0;\n\nconst message = `📧 新着メールへの返信案\n\n【元メール】\n送信者: ${prevData.emailFrom}\n件名: ${prevData.emailSubject}\n\n【Claudeが作成した返信案】\n（カレンダー ${eventCount}件の予定を確認済み）\n\n${replyText}\n\n---\nこの返信内容でよろしいですか？\n✅ 承認して送信 / ✏️ 修正が必要`;\n\nreturn [\n  {\n    json: {\n      lineMessage: message,\n      emailFrom: prevData.emailFrom,\n      emailSubject: prevData.emailSubject,\n      replyDraft: replyText\n    }\n  }\n];"
+        "jsCode": "const claudeResponse = $input.first().json;\nconst prevData = $('カレンダー情報 & プロンプト作成').first().json;\nconst p = prevData.parsed;\n\n// Claudeの返信テキストを取得\nconst replyText = claudeResponse.content?.[0]?.text || '';\n\n// 申し込み種別ラベル\nconst typeLabel = prevData.isInquiryOnly ? '📋 お問い合わせ' : '📝 申し込み';\n\nconst message = [\n  `${typeLabel} 新着メール`,\n  '',\n  `【お客様情報】`,\n  `名前: ${p.name}（${p.furigana}）様`,\n  `項目: ${p.item}`,\n  `希望日: ${p.date1} ${p.time1} / ${p.date2} ${p.time2} / ${p.date3} ${p.time3}`,\n  '',\n  `【Claudeが作成した返信案】`,\n  `（カレンダー ${prevData.calendarEventCount}件の予定を確認済み）`,\n  '',\n  replyText,\n  '',\n  '---',\n  'この返信内容でよろしいですか？',\n  '✅ 承認して送信 / ✏️ 修正が必要'\n].join('\\n');\n\nreturn [\n  {\n    json: {\n      lineMessage: message,\n      emailFrom: prevData.emailFrom,\n      emailSubject: prevData.emailSubject,\n      replyDraft: replyText,\n      customerName: p.name,\n      customerEmail: p.email\n    }\n  }\n];"
       },
       "id": "format-line-message",
       "name": "LINEメッセージを整形",
@@ -208,5 +208,5 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "tags": ["メール", "LINE", "Claude", "Googleカレンダー", "自動化"]
+  "tags": ["ペーパードライバー", "メール", "LINE", "Claude", "Googleカレンダー", "自動化"]
 }
