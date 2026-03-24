@@ -118,22 +118,31 @@
     },
     {
       "parameters": {
-        "authentication": "oAuth2",
-        "operation": "sendMessage",
-        "userId": "={{ $vars.LINE_USER_ID }}",
-        "message": "={{ $json.lineMessage }}"
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.LINE_CHANNEL_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ to: $vars.LINE_USER_ID, messages: [{ type: 'text', text: $json.lineMessage.substring(0, 5000) }] }) }}"
       },
       "id": "send-line",
       "name": "LINEに確認メッセージを送信",
-      "type": "n8n-nodes-base.line",
-      "typeVersion": 1,
-      "position": [1560, 300],
-      "credentials": {
-        "lineNotifyOAuth2Api": {
-          "id": "line-credentials",
-          "name": "LINE Notify設定"
-        }
-      }
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 300]
     }
   ],
   "connections": {
