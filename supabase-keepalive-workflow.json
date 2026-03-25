@@ -1,0 +1,181 @@
+{
+  "name": "Supabase Keepalive (一時停止防止)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 */3 * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "3日ごとのスケジュール",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://pefwtswgijseamvvkkux.supabase.co/rest/v1/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $vars.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.SUPABASE_ANON_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "supabase-ping",
+      "name": "Supabase 疎通確認",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "check-no-error",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notExists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-success",
+      "name": "成功チェック",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.LINE_CHANNEL_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ to: $vars.LINE_USER_ID, messages: [{ type: 'text', text: '✅ Supabase keepalive 成功\\n実行日時: ' + new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) }] }) }}"
+      },
+      "id": "line-success",
+      "name": "LINE: 成功通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 180]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.LINE_CHANNEL_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ to: $vars.LINE_USER_ID, messages: [{ type: 'text', text: '❌ Supabase keepalive 失敗！\\n確認してください\\n実行日時: ' + new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) + '\\nエラー: ' + (String($json.error || '不明')) }] }) }}"
+      },
+      "id": "line-failure",
+      "name": "LINE: 失敗通知",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 420]
+    }
+  ],
+  "connections": {
+    "3日ごとのスケジュール": {
+      "main": [
+        [
+          {
+            "node": "Supabase 疎通確認",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase 疎通確認": {
+      "main": [
+        [
+          {
+            "node": "成功チェック",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "成功チェック": {
+      "main": [
+        [
+          {
+            "node": "LINE: 成功通知",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LINE: 失敗通知",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": ["Supabase", "keepalive", "定期実行"]
+}
