@@ -21,20 +21,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://pefwtswgijseamvvkkux.supabase.co/rest/v1/",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{ $env.SUPABASE_ANON_KEY_DRIVE }}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.SUPABASE_ANON_KEY_DRIVE }}"
-            }
-          ]
-        },
+        "url": "https://pefwtswgijseamvvkkux.supabase.co/auth/v1/health",
         "options": {}
       },
       "id": "supabase-ping-1",
@@ -47,20 +34,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://sushgidwukmpslmfbhpb.supabase.co/rest/v1/",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{ $env.SUPABASE_ANON_KEY_UMEKITA }}"
-            },
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.SUPABASE_ANON_KEY_UMEKITA }}"
-            }
-          ]
-        },
+        "url": "https://sushgidwukmpslmfbhpb.supabase.co/auth/v1/health",
         "options": {}
       },
       "id": "supabase-ping-2",
@@ -82,7 +56,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\n// Mergeノードはinput 0 → index 0、input 1 → index 1 の順で格納\nconst result1 = items[0].json; // drive-personal-lab-web\nconst result2 = items[1].json; // umekita-pds-diagnosis\n\nconst success1 = !result1.error;\nconst success2 = !result2.error;\n\nconst now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });\n\nconst status1 = success1 ? '✅' : '❌ ' + String(result1.error || '不明');\nconst status2 = success2 ? '✅' : '❌ ' + String(result2.error || '不明');\n\nlet message;\nif (success1 && success2) {\n  message = `✅ Supabase keepalive 成功\\n実行日時: ${now}\\n\\n・drive-personal-lab-web: ${status1}\\n・umekita-pds-diagnosis: ${status2}`;\n} else {\n  message = `❌ Supabase keepalive 一部失敗！\\n確認してください\\n実行日時: ${now}\\n\\n・drive-personal-lab-web: ${status1}\\n・umekita-pds-diagnosis: ${status2}`;\n}\n\nreturn [{ json: { message, allSuccess: success1 && success2 } }];"
+        "jsCode": "const items = $input.all();\n// Mergeノードはinput 0 → index 0、input 1 → index 1 の順で格納\n// /auth/v1/health は認証不要。成功時: {\"status\":\"pass\"}, 失敗時: error フィールドあり\nconst result1 = items[0].json; // drive-personal-lab-web\nconst result2 = items[1].json; // umekita-pds-diagnosis\n\nconst success1 = result1.status === 'pass';\nconst success2 = result2.status === 'pass';\n\nconst now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });\n\nconst status1 = success1 ? '✅' : '❌ ' + String(result1.message || result1.error || '不明');\nconst status2 = success2 ? '✅' : '❌ ' + String(result2.message || result2.error || '不明');\n\nlet message;\nif (success1 && success2) {\n  message = `✅ Supabase keepalive 成功\\n実行日時: ${now}\\n\\n・drive-personal-lab-web: ${status1}\\n・umekita-pds-diagnosis: ${status2}`;\n} else {\n  message = `❌ Supabase keepalive 一部失敗！\\n確認してください\\n実行日時: ${now}\\n\\n・drive-personal-lab-web: ${status1}\\n・umekita-pds-diagnosis: ${status2}`;\n}\n\nreturn [{ json: { message, allSuccess: success1 && success2 } }];"
       },
       "id": "check-and-build-message",
       "name": "結果チェック & 通知準備",
