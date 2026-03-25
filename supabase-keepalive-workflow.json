@@ -22,6 +22,15 @@
       "parameters": {
         "method": "GET",
         "url": "https://pefwtswgijseamvvkkux.supabase.co/auth/v1/health",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY_DRIVE }}"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "supabase-ping-1",
@@ -35,6 +44,15 @@
       "parameters": {
         "method": "GET",
         "url": "https://sushgidwukmpslmfbhpb.supabase.co/auth/v1/health",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY_UMEKITA }}"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "supabase-ping-2",
