@@ -66,7 +66,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// カレンダーイベントを整形\nconst events = $input.all();\nconst emailData = $('メール内容を整形').first().json;\nconst p = emailData.parsed;\n\nconst formattedEvents = events.map(e => {\n  const ev = e.json;\n  const start = ev.start?.dateTime || ev.start?.date || '';\n  const end = ev.end?.dateTime || ev.end?.date || '';\n  const title = ev.summary || '(無題)';\n  return { title, start, end };\n});\n\n// 今日の日付\nconst today = new Date();\nconst todayStr = today.toLocaleDateString('ja-JP', {\n  year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'\n});\n\n// カレンダー予定の文字列化\nconst calendarSummary = formattedEvents.length > 0\n  ? formattedEvents.map(e => {\n      const s = new Date(e.start);\n      const en = new Date(e.end);\n      const dateStr = s.toLocaleDateString('ja-JP', {month: 'long', day: 'numeric', weekday: 'short'});\n      const startTime = s.toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit'});\n      const endTime = en.toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit'});\n      // 終日イベントの場合\n      if (e.start.length === 10) {\n        return `・${dateStr} 終日 ${e.title}`;\n      }\n      return `・${dateStr} ${startTime}〜${endTime} ${e.title}`;\n    }).join('\\n')\n  : '（予定なし）';\n\n// 申し込み内容のサマリー\nconst inquirySummary = `項目: ${p.item}\n名前: ${p.name}（${p.furigana}）様\nメールアドレス: ${p.email}\n電話番号: ${p.phone}\n運転していない期間: ${p.nodriving}\n使用車両: ${p.car}${p.mycar ? '（' + p.mycar + '）' : ''}\n出張先: ${p.location}${p.locationOther ? '（' + p.locationOther + '）' : ''}\n第一希望: ${p.date1} ${p.time1}\n第二希望: ${p.date2} ${p.time2}\n第三希望: ${p.date3} ${p.time3}\n支払い: ${p.payment}\nメッセージ: ${p.message}`;\n\nconst lineOfficialUrl = $vars.LINE_OFFICIAL_URL || 'https://lin.ee/vwFCADj';\n\nconst prompt = `あなたは「うめきた大阪ペーパードライバースクール」の受付担当・大西です。\n以下のお申し込みメールに対して、返信メールを作成してください。\n\n【今日の日付】\n${todayStr}\n\n【お申し込み内容】\n${inquirySummary}\n\n【カレンダーの予約状況（今後60日分）】\n${calendarSummary}\n\n---\n【返信メールの作成ルール】\n\n1. 書き出しは「${p.name}様」で始めること\n2. 次に「この度は当スクールにお問合せいただき、誠にありがとうございます。受付担当の大西と申します。」を入れること\n3. カレンダーを確認し、第一〜第三希望日の空き状況を明記すること\n   - 空いている日程: 「〇月〇日（曜日）〇時スタート可能です」\n   - 埋まっている日程: 「第〇希望は予約いっぱいとなっております」\n   - 空き枠が決まったら「本日〇時まで仮押さえさせていただきます」と明記すること（翌日17時が目安）\n4. お客様のメッセージ内容・ご状況に応じて、適切なコースを提案すること\n   - 駐車のみ希望 → 「駐車やり方学ぼう（2時限）」など\n   - 走る練習も必要そう → 「最低でも10時限、または20時限コースをおすすめしております」\n   - 迷っている場合 → 「お試し教習70分を受講いただき、現在の運転状況を見させていただき教習担当と相談することも可能です」\n5. 「進めていく場合は、下記LINE公式アカウントにご登録ください。当日の詳細をお送りします。登録後、${p.name}様のお名前のみお送りいただけますでしょうか。」を入れること\n6. 末尾にLINE公式アカウントのURLを記載すること: ${lineOfficialUrl}\n7. 件名は「Re: [元の件名]」形式\n8. 丁寧・簡潔・温かみのある文体にすること\n\n出力形式:\n件名: Re: [件名]\n\n[返信本文]`;\n\nreturn [\n  {\n    json: {\n      prompt,\n      emailFrom: emailData.from,\n      emailSubject: emailData.subject,\n      parsed: p,\n      isInquiryOnly: emailData.isInquiryOnly,\n      calendarEventCount: formattedEvents.length\n    }\n  }\n];"
+        "jsCode": "// カレンダーイベントを整形\nconst events = $input.all();\nconst emailData = $('メール内容を整形').first().json;\nconst p = emailData.parsed;\n\nconst formattedEvents = events.map(e => {\n  const ev = e.json;\n  const start = ev.start?.dateTime || ev.start?.date || '';\n  const end = ev.end?.dateTime || ev.end?.date || '';\n  const title = ev.summary || '(無題)';\n  return { title, start, end };\n});\n\n// 今日の日付\nconst today = new Date();\nconst todayStr = today.toLocaleDateString('ja-JP', {\n  year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'\n});\n\n// カレンダー予定の文字列化\nconst calendarSummary = formattedEvents.length > 0\n  ? formattedEvents.map(e => {\n      const s = new Date(e.start);\n      const en = new Date(e.end);\n      const dateStr = s.toLocaleDateString('ja-JP', {month: 'long', day: 'numeric', weekday: 'short'});\n      const startTime = s.toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit'});\n      const endTime = en.toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit'});\n      // 終日イベントの場合\n      if (e.start.length === 10) {\n        return `・${dateStr} 終日 ${e.title}`;\n      }\n      return `・${dateStr} ${startTime}〜${endTime} ${e.title}`;\n    }).join('\\n')\n  : '（予定なし）';\n\n// 申し込み内容のサマリー\nconst inquirySummary = `項目: ${p.item}\n名前: ${p.name}（${p.furigana}）様\nメールアドレス: ${p.email}\n電話番号: ${p.phone}\n運転していない期間: ${p.nodriving}\n使用車両: ${p.car}${p.mycar ? '（' + p.mycar + '）' : ''}\n出張先: ${p.location}${p.locationOther ? '（' + p.locationOther + '）' : ''}\n第一希望: ${p.date1} ${p.time1}\n第二希望: ${p.date2} ${p.time2}\n第三希望: ${p.date3} ${p.time3}\n支払い: ${p.payment}\nメッセージ: ${p.message}`;\n\nconst lineOfficialUrl = $env.LINE_OFFICIAL_URL || 'https://lin.ee/vwFCADj';\n\nconst prompt = `あなたは「うめきた大阪ペーパードライバースクール」の受付担当・大西です。\n以下のお申し込みメールに対して、返信メールを作成してください。\n\n【今日の日付】\n${todayStr}\n\n【お申し込み内容】\n${inquirySummary}\n\n【カレンダーの予約状況（今後60日分）】\n${calendarSummary}\n\n---\n【返信メールの作成ルール】\n\n1. 書き出しは「${p.name}様」で始めること\n2. 次に「この度は当スクールにお問合せいただき、誠にありがとうございます。受付担当の大西と申します。」を入れること\n3. カレンダーを確認し、第一〜第三希望日の空き状況を明記すること\n   - 空いている日程: 「〇月〇日（曜日）〇時スタート可能です」\n   - 埋まっている日程: 「第〇希望は予約いっぱいとなっております」\n   - 空き枠が決まったら「本日〇時まで仮押さえさせていただきます」と明記すること（翌日17時が目安）\n4. お客様のメッセージ内容・ご状況に応じて、適切なコースを提案すること\n   - 駐車のみ希望 → 「駐車やり方学ぼう（2時限）」など\n   - 走る練習も必要そう → 「最低でも10時限、または20時限コースをおすすめしております」\n   - 迷っている場合 → 「お試し教習70分を受講いただき、現在の運転状況を見させていただき教習担当と相談することも可能です」\n5. 「進めていく場合は、下記LINE公式アカウントにご登録ください。当日の詳細をお送りします。登録後、${p.name}様のお名前のみお送りいただけますでしょうか。」を入れること\n6. 末尾にLINE公式アカウントのURLを記載すること: ${lineOfficialUrl}\n7. 件名は「Re: [元の件名]」形式\n8. 丁寧・簡潔・温かみのある文体にすること\n\n出力形式:\n件名: Re: [件名]\n\n[返信本文]`;\n\nreturn [\n  {\n    json: {\n      prompt,\n      emailFrom: emailData.from,\n      emailSubject: emailData.subject,\n      parsed: p,\n      isInquiryOnly: emailData.isInquiryOnly,\n      calendarEventCount: formattedEvents.length\n    }\n  }\n];"
       },
       "id": "build-claude-prompt",
       "name": "カレンダー情報 & プロンプト作成",
@@ -83,7 +83,7 @@
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "={{ $vars.ANTHROPIC_API_KEY }}"
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
             },
             {
               "name": "anthropic-version",
@@ -125,7 +125,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer {{ $vars.LINE_CHANNEL_ACCESS_TOKEN }}"
+              "value": "=Bearer {{ $env.LINE_CHANNEL_ACCESS_TOKEN }}"
             },
             {
               "name": "Content-Type",
@@ -136,7 +136,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ to: $vars.LINE_USER_ID, messages: [{ type: 'text', text: $json.lineMessage.substring(0, 5000) }] }) }}"
+        "body": "={{ JSON.stringify({ to: $env.LINE_USER_ID, messages: [{ type: 'text', text: $json.lineMessage.substring(0, 5000) }] }) }}"
       },
       "id": "send-line",
       "name": "LINEに確認メッセージを送信",

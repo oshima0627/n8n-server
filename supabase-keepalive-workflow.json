@@ -27,11 +27,11 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "={{ $vars.SUPABASE_ANON_KEY }}"
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
             },
             {
               "name": "Authorization",
-              "value": "=Bearer {{ $vars.SUPABASE_ANON_KEY }}"
+              "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}"
             }
           ]
         },
@@ -83,7 +83,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer {{ $vars.LINE_CHANNEL_ACCESS_TOKEN }}"
+              "value": "=Bearer {{ $env.LINE_CHANNEL_ACCESS_TOKEN }}"
             },
             {
               "name": "Content-Type",
@@ -94,7 +94,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ to: $vars.LINE_USER_ID, messages: [{ type: 'text', text: '✅ Supabase keepalive 成功\\n実行日時: ' + new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) }] }) }}"
+        "body": "={{ JSON.stringify({ to: $env.LINE_USER_ID, messages: [{ type: 'text', text: '✅ Supabase keepalive 成功\\n実行日時: ' + new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) }] }) }}"
       },
       "id": "line-success",
       "name": "LINE: 成功通知",
@@ -111,7 +111,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer {{ $vars.LINE_CHANNEL_ACCESS_TOKEN }}"
+              "value": "=Bearer {{ $env.LINE_CHANNEL_ACCESS_TOKEN }}"
             },
             {
               "name": "Content-Type",
@@ -122,7 +122,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ to: $vars.LINE_USER_ID, messages: [{ type: 'text', text: '❌ Supabase keepalive 失敗！\\n確認してください\\n実行日時: ' + new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) + '\\nエラー: ' + (String($json.error || '不明')) }] }) }}"
+        "body": "={{ JSON.stringify({ to: $env.LINE_USER_ID, messages: [{ type: 'text', text: '❌ Supabase keepalive 失敗！\\n確認してください\\n実行日時: ' + new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) + '\\nエラー: ' + (String($json.error || '不明')) }] }) }}"
       },
       "id": "line-failure",
       "name": "LINE: 失敗通知",
