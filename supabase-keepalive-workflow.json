@@ -38,10 +38,10 @@
         "options": {}
       },
       "id": "supabase-ping-1",
-      "name": "Supabase 1 疎通確認 (drive-personal-lab-web)",
+      "name": "Supabase 1 ping (drive-personal-lab-web)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [460, 300],
+      "position": [460, 180],
       "continueOnFail": true
     },
     {
@@ -64,15 +64,25 @@
         "options": {}
       },
       "id": "supabase-ping-2",
-      "name": "Supabase 2 疎通確認 (umekita-pds-diagnosis)",
+      "name": "Supabase 2 ping (umekita-pds-diagnosis)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [680, 300],
+      "position": [460, 420],
       "continueOnFail": true
     },
     {
       "parameters": {
-        "jsCode": "const result1 = $('Supabase 1 疎通確認 (drive-personal-lab-web)').first().json;\nconst result2 = $input.first().json;\n\nconst success1 = !result1.error;\nconst success2 = !result2.error;\n\nconst now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });\n\nconst status1 = success1 ? '✅' : '❌ ' + String(result1.error || '不明');\nconst status2 = success2 ? '✅' : '❌ ' + String(result2.error || '不明');\n\nlet message;\nif (success1 && success2) {\n  message = `✅ Supabase keepalive 成功\\n実行日時: ${now}\\n\\n・drive-personal-lab-web: ${status1}\\n・umekita-pds-diagnosis: ${status2}`;\n} else {\n  message = `❌ Supabase keepalive 一部失敗！\\n確認してください\\n実行日時: ${now}\\n\\n・drive-personal-lab-web: ${status1}\\n・umekita-pds-diagnosis: ${status2}`;\n}\n\nreturn [{ json: { message, allSuccess: success1 && success2 } }];"
+        "mode": "append"
+      },
+      "id": "merge-results",
+      "name": "結果マージ",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n// Mergeノードはinput 0 → index 0、input 1 → index 1 の順で格納\nconst result1 = items[0].json; // drive-personal-lab-web\nconst result2 = items[1].json; // umekita-pds-diagnosis\n\nconst success1 = !result1.error;\nconst success2 = !result2.error;\n\nconst now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });\n\nconst status1 = success1 ? '✅' : '❌ ' + String(result1.error || '不明');\nconst status2 = success2 ? '✅' : '❌ ' + String(result2.error || '不明');\n\nlet message;\nif (success1 && success2) {\n  message = `✅ Supabase keepalive 成功\\n実行日時: ${now}\\n\\n・drive-personal-lab-web: ${status1}\\n・umekita-pds-diagnosis: ${status2}`;\n} else {\n  message = `❌ Supabase keepalive 一部失敗！\\n確認してください\\n実行日時: ${now}\\n\\n・drive-personal-lab-web: ${status1}\\n・umekita-pds-diagnosis: ${status2}`;\n}\n\nreturn [{ json: { message, allSuccess: success1 && success2 } }];"
       },
       "id": "check-and-build-message",
       "name": "結果チェック & 通知準備",
@@ -114,25 +124,41 @@
       "main": [
         [
           {
-            "node": "Supabase 1 疎通確認 (drive-personal-lab-web)",
+            "node": "Supabase 1 ping (drive-personal-lab-web)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Supabase 2 ping (umekita-pds-diagnosis)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Supabase 1 疎通確認 (drive-personal-lab-web)": {
+    "Supabase 1 ping (drive-personal-lab-web)": {
       "main": [
         [
           {
-            "node": "Supabase 2 疎通確認 (umekita-pds-diagnosis)",
+            "node": "結果マージ",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Supabase 2 疎通確認 (umekita-pds-diagnosis)": {
+    "Supabase 2 ping (umekita-pds-diagnosis)": {
+      "main": [
+        [
+          {
+            "node": "結果マージ",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "結果マージ": {
       "main": [
         [
           {
