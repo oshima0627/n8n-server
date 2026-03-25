@@ -1,0 +1,189 @@
+{
+  "name": "Supabase Keepalive (一時停止防止)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 */3 * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "3日ごとのスケジュール",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://pefwtswgijseamvvkkux.supabase.co/rest/v1/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY_DRIVE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_ANON_KEY_DRIVE }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "supabase-ping-1",
+      "name": "Supabase 1 ping (drive-personal-lab-web)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 180],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://sushgidwukmpslmfbhpb.supabase.co/rest/v1/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY_UMEKITA }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_ANON_KEY_UMEKITA }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "supabase-ping-2",
+      "name": "Supabase 2 ping (umekita-pds-diagnosis)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 420],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "id": "merge-results",
+      "name": "結果マージ",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n// Mergeノードはinput 0 → index 0、input 1 → index 1 の順で格納\nconst result1 = items[0].json; // drive-personal-lab-web\nconst result2 = items[1].json; // umekita-pds-diagnosis\n\nconst success1 = !result1.error;\nconst success2 = !result2.error;\n\nconst now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });\n\nconst status1 = success1 ? '✅' : '❌ ' + String(result1.error || '不明');\nconst status2 = success2 ? '✅' : '❌ ' + String(result2.error || '不明');\n\nlet message;\nif (success1 && success2) {\n  message = `✅ Supabase keepalive 成功\\n実行日時: ${now}\\n\\n・drive-personal-lab-web: ${status1}\\n・umekita-pds-diagnosis: ${status2}`;\n} else {\n  message = `❌ Supabase keepalive 一部失敗！\\n確認してください\\n実行日時: ${now}\\n\\n・drive-personal-lab-web: ${status1}\\n・umekita-pds-diagnosis: ${status2}`;\n}\n\nreturn [{ json: { message, allSuccess: success1 && success2 } }];"
+      },
+      "id": "check-and-build-message",
+      "name": "結果チェック & 通知準備",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/push",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.LINE_CHANNEL_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ to: $env.LINE_USER_ID, messages: [{ type: 'text', text: $json.message }] }) }}"
+      },
+      "id": "line-notify",
+      "name": "LINE: 通知送信",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "3日ごとのスケジュール": {
+      "main": [
+        [
+          {
+            "node": "Supabase 1 ping (drive-personal-lab-web)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Supabase 2 ping (umekita-pds-diagnosis)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase 1 ping (drive-personal-lab-web)": {
+      "main": [
+        [
+          {
+            "node": "結果マージ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase 2 ping (umekita-pds-diagnosis)": {
+      "main": [
+        [
+          {
+            "node": "結果マージ",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "結果マージ": {
+      "main": [
+        [
+          {
+            "node": "結果チェック & 通知準備",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "結果チェック & 通知準備": {
+      "main": [
+        [
+          {
+            "node": "LINE: 通知送信",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": ["Supabase", "keepalive", "定期実行"]
+}
