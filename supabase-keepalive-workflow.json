@@ -27,18 +27,18 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+              "value": "={{ $env.SUPABASE_ANON_KEY_DRIVE }}"
             },
             {
               "name": "Authorization",
-              "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}"
+              "value": "=Bearer {{ $env.SUPABASE_ANON_KEY_DRIVE }}"
             }
           ]
         },
         "options": {}
       },
-      "id": "supabase-ping",
-      "name": "Supabase 疎通確認",
+      "id": "supabase-ping-1",
+      "name": "Supabase 1 疎通確認 (drive-personal-lab-web)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [460, 300],
@@ -46,33 +46,39 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "loose"
-          },
-          "conditions": [
+        "method": "GET",
+        "url": "https://sushgidwukmpslmfbhpb.supabase.co/rest/v1/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
             {
-              "id": "check-no-error",
-              "leftValue": "={{ $json.error }}",
-              "rightValue": "",
-              "operator": {
-                "type": "string",
-                "operation": "notExists",
-                "singleValue": true
-              }
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY_UMEKITA }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_ANON_KEY_UMEKITA }}"
             }
-          ],
-          "combinator": "and"
+          ]
         },
         "options": {}
       },
-      "id": "check-success",
-      "name": "成功チェック",
-      "type": "n8n-nodes-base.if",
+      "id": "supabase-ping-2",
+      "name": "Supabase 2 疎通確認 (umekita-pds-diagnosis)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const result1 = $('Supabase 1 疎通確認 (drive-personal-lab-web)').first().json;\nconst result2 = $input.first().json;\n\nconst success1 = !result1.error;\nconst success2 = !result2.error;\n\nconst now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });\n\nconst status1 = success1 ? '✅' : '❌ ' + String(result1.error || '不明');\nconst status2 = success2 ? '✅' : '❌ ' + String(result2.error || '不明');\n\nlet message;\nif (success1 && success2) {\n  message = `✅ Supabase keepalive 成功\\n実行日時: ${now}\\n\\n・drive-personal-lab-web: ${status1}\\n・umekita-pds-diagnosis: ${status2}`;\n} else {\n  message = `❌ Supabase keepalive 一部失敗！\\n確認してください\\n実行日時: ${now}\\n\\n・drive-personal-lab-web: ${status1}\\n・umekita-pds-diagnosis: ${status2}`;\n}\n\nreturn [{ json: { message, allSuccess: success1 && success2 } }];"
+      },
+      "id": "check-and-build-message",
+      "name": "結果チェック & 通知準備",
+      "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [680, 300]
+      "position": [900, 300]
     },
     {
       "parameters": {
@@ -94,41 +100,13 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ to: $env.LINE_USER_ID, messages: [{ type: 'text', text: '✅ Supabase keepalive 成功\\n実行日時: ' + new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) }] }) }}"
+        "body": "={{ JSON.stringify({ to: $env.LINE_USER_ID, messages: [{ type: 'text', text: $json.message }] }) }}"
       },
-      "id": "line-success",
-      "name": "LINE: 成功通知",
+      "id": "line-notify",
+      "name": "LINE: 通知送信",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [900, 180]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.line.me/v2/bot/message/push",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Bearer {{ $env.LINE_CHANNEL_ACCESS_TOKEN }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "contentType": "raw",
-        "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ to: $env.LINE_USER_ID, messages: [{ type: 'text', text: '❌ Supabase keepalive 失敗！\\n確認してください\\n実行日時: ' + new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) + '\\nエラー: ' + (String($json.error || '不明')) }] }) }}"
-      },
-      "id": "line-failure",
-      "name": "LINE: 失敗通知",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [900, 420]
+      "position": [1120, 300]
     }
   ],
   "connections": {
@@ -136,36 +114,40 @@
       "main": [
         [
           {
-            "node": "Supabase 疎通確認",
+            "node": "Supabase 1 疎通確認 (drive-personal-lab-web)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Supabase 疎通確認": {
+    "Supabase 1 疎通確認 (drive-personal-lab-web)": {
       "main": [
         [
           {
-            "node": "成功チェック",
+            "node": "Supabase 2 疎通確認 (umekita-pds-diagnosis)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "成功チェック": {
+    "Supabase 2 疎通確認 (umekita-pds-diagnosis)": {
       "main": [
         [
           {
-            "node": "LINE: 成功通知",
+            "node": "結果チェック & 通知準備",
             "type": "main",
             "index": 0
           }
-        ],
+        ]
+      ]
+    },
+    "結果チェック & 通知準備": {
+      "main": [
         [
           {
-            "node": "LINE: 失敗通知",
+            "node": "LINE: 通知送信",
             "type": "main",
             "index": 0
           }
